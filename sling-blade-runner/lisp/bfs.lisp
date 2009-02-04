@@ -57,7 +57,7 @@
     (multiple-value-bind (titles last-index)
 	(index-titles filename)
 
-      ;; Split titles into pieces and index them in hash-tables.
+      ;; Split titles into pieces and index them in hash-tables left and right.
       (dotimes (title-index last-index)
 	(let ((title-parts (split (gethash title-index titles))))
 	  (dotimes (i (length title-parts))
@@ -66,7 +66,7 @@
 	      (setf (gethash lpart left) (cons title-index (gethash lpart left '())))
 	      (setf (gethash rpart right) (cons title-index (gethash rpart right '())))))))
       
-      ;; Find overlaps in titles and index them in hash-tables.
+      ;; Find overlaps in titles and index them in hash-tables next and prev.
       (maphash #'(lambda (title-part left-indexes)
 		   (when (gethash title-part right)
 		     (dolist (left-index left-indexes)
@@ -78,9 +78,6 @@
       (values next prev titles))))
 
 (let ((memo (make-hash-table :test #'equal)))
-  (defun reset-count-tree-size ()
-    (clrhash memo))
-  
   (defun count-tree-size (index depth hash-table-name hash-table)
     (let ((result (gethash `(,index ,depth ,hash-table-name) memo)))
       (if result
@@ -109,96 +106,73 @@
 			     (count-tree-size b depth 'next next))))))
     result))
   
+(defun order-titles (look-ahead next prev)
+  "Order all titles by tree-size (in <next> and <prev> combined) with <look-ahead> depth."
+  (let ((ordered-titles '()))
+    (maphash #'(lambda (k v)
+		 (declare (ignore v))
+		 (setf ordered-titles (cons `(,k ,(+ (count-tree-size k look-ahead 'next next)
+						     (count-tree-size k look-ahead 'prev prev))) ordered-titles)))
+	     next)
+    (sort ordered-titles #'> :key #'cadr)))
+
+(defun best-first-search-with-backtracking (choice-points look-ahead backtrack-limit hash)
+  (let ((evaluate-current-choice-points nil)
+	(longest-curr '())
+	(result '())
+	(curr-index nil))
+    (while choice-points
+      (setf result (pop choice-points))
+      (setf curr-index (car result))
+      (do ((children (get-children curr-index look-ahead hash result)
+		     (get-children curr-index look-ahead hash result)))
+	  ((or (eq curr-index nil) (eq children nil)) t)
+	(setf curr-index (car children))
+	(unless evaluate-current-choice-points
+	  (let ((c backtrack-limit))
+	    (dolist (i (cdr children))
+	      (when (> c 0)
+		(decf c)
+		(push (append (list i) result) choice-points))))
+	  (print (length choice-points))
+	  (setf evaluate-current-choice-points t))
+	
+	(when curr-index
+	  (setf result (push curr-index result))))
+      
+      (when (> (length result) (length longest-curr))
+	(setf longest-curr result)
+	(format t "(#~D), " (length longest-curr))))
+    longest-curr))
+
 (defun find-longest-chain (filename n look-ahead backtrack-limit)
   (multiple-value-bind (next prev titles)
       (make-xref filename) ; Index and cross reference all titles in <filename>.
-    (let ((ordered-titles '())
-
-	  (longest '())
-	  (longest-curr '())
-	  (choice-points '())
-	  (result '())
-
-	  (curr-index '()))
-
+    (let ((ordered-titles (order-titles look-ahead next prev))
+	  (longest-chain '()))
       (restart-bind ((abort-search #'(lambda ()
-				       (return-from find-longest-chain (values (reverse longest) titles)))
+				       (return-from find-longest-chain (values (reverse longest-chain) titles)))
 		       :report-function (lambda (stream)
-					  (format stream "Abort search and return current longest chain (~D titles)." (length longest)))))
-
-	;; Order all titles by tree-size (in next and prev combined) with <look-ahead> depth.
-	(maphash #'(lambda (k v)
-		     (declare (ignore v))
-		     (setf ordered-titles (cons `(,k ,(+ (count-tree-size k look-ahead 'next next)
-							 (count-tree-size k look-ahead 'prev prev))) ordered-titles)))
-		 next)
-	(setf ordered-titles (sort ordered-titles #'> :key #'cadr))
-      
-	;; Best-first search with chronological backtracking
+					  (format stream "Abort search and return current longest chain (~D titles)." (length longest-chain)))))
 	(do ((i 0 (+ i 1)))
 	    ((> i n))
-	  next-title-search
-	  (restart-bind ((try-next-title #'(lambda ()
-					     (setf choice-points '()
-						   result '()
-						   longest-curr '()
-						   curr-index '()
-						   i (+ i 1))
-					     (go next-title-search))
-			   :report-function (lambda (stream)
-					      (if (< i (- n 1))
-						  (format stream "Try searching next title (~A)" (gethash (car (nth (+ i 1) ordered-titles)) titles))
-						  (format stream "= Abort search")))))
-	    (format t "Exploring ~A~%" (gethash (car (nth i ordered-titles)) titles))
-	      
-	    (setf choice-points (list (list (car (nth i ordered-titles)))))
-	    (while choice-points
-	      (setf result (pop choice-points))
-	      (setf curr-index (car result))
-	      (do ((children (get-children curr-index look-ahead prev result)
-			     (get-children curr-index look-ahead prev result)))
-		  ((or (eq curr-index nil) (eq children nil)) t)
-		(setf curr-index (car children))
-		(let ((c backtrack-limit))
-		  (dolist (i (cdr children))
-		    (when (> c 0)
-		      (decf c)
-		      (push (append (list i) result) choice-points))))
-		
-		(when curr-index
-		  (setf result (push curr-index result))))
-	      
-	      (when (> (length result) (length longest-curr))
-		(setf longest-curr result)
-		(format t "<~D, " (length longest-curr))))
-	    
-	    (setf choice-points (list (reverse longest-curr)))
-	    (while choice-points
-	      (setf result (pop choice-points))
-	      (setf curr-index (car result))
-	      (do ((children (get-children curr-index look-ahead next result)
-			     (get-children curr-index look-ahead next result)))
-		  ((or (eq curr-index nil) (eq children nil)) t)
-		(setf curr-index (car children))
-		(let ((c backtrack-limit))
-		  (dolist (i (cdr children))
-		    (when (> c 0)
-		      (decf c)
-		      (push (append (list i) result) choice-points))))
-		  
-		(when curr-index
-		  (setf result (push curr-index result))))
-		
-	      (if (> (length result) (length longest))
-		  (progn
-		    (setf longest result)
-		    (setf longest-curr result)
-		    (format t ">>~D, " (length longest)))
-		  (when (> (length result) (length longest-curr))
-		    (setf longest-curr result)
-		    (format t ">~D, " (length longest-curr)))))))
-
-	(values (reverse longest) titles)))))
+	 next-title-search
+	  (let ((longest-curr '()))
+	    (restart-bind ((try-next-title #'(lambda ()
+					       (incf i)
+					       (when (< i (- n 1))
+						 (incf n))
+					       (go next-title-search))
+			     :report-function (lambda (stream)
+						(format stream "Try searching next title (~A)" (gethash (car (nth (+ i 1) ordered-titles)) titles)))))
+	      (let ((curr-title (car (nth i ordered-titles))))
+		(format t "~&Exploring ~A~%" (gethash curr-title titles))
+		(setf longest-curr (best-first-search-with-backtracking `((,curr-title)) look-ahead backtrack-limit prev)) ; Search backwards and
+		(setf longest-curr (best-first-search-with-backtracking `(,(reverse longest-curr)) look-ahead backtrack-limit next)) ; continue forwards
+		(when (> (length longest-curr) (length longest-chain))
+		  (setf longest-chain longest-curr)
+		  (format t "#~D, " (length longest-chain)))))))
+	(values (reverse longest-chain) titles)))))
 
 (defun solve (filename &key (n 5) (look-ahead 5) (backtrack-limit 5))
   (multiple-value-bind (longest titles)
