@@ -154,23 +154,26 @@
       (make-xref filename) ; Index and cross reference all titles in <filename>.
     (let ((ordered-titles (order-titles look-ahead next prev))
 	  (longest-chain '()))
-      (do ((i 0 (+ i 1)))
-	  ((> i n))
-       next-title-search
-	(let ((longest-curr '()))
-	  (let ((curr-title (car (nth i ordered-titles))))
-	    (format t "~&Exploring ~A " (gethash curr-title titles))
-	    (setf longest-curr ; Search backwards and
-		  (best-first-search-with-backtracking `((,curr-title)) look-ahead backtrack-limit max-count prev))
-	    (setf longest-curr ; continue forwards
-		  (best-first-search-with-backtracking `(,(reverse longest-curr)) look-ahead backtrack-limit max-count next))
-            (format t "#~D" (length longest-curr))
-	    (when (> (length longest-curr) (length longest-chain))
-	      (setf longest-chain longest-curr)
-	      (format t "*")))))
-    (values (reverse longest-chain) titles))))
+      (restart-bind ((abort-search #'(lambda ()
+                                       (return-from find-longest-chain (values (reverse longest-chain) titles)))
+                       :report-function (lambda (stream)
+                                          (format stream "Abort search and return current longest chain (~D titles)." (length longest-chain)))))
+        (do ((i 0 (+ i 1)))
+            ((> i n))
+          (let ((longest-curr '()))
+            (let ((curr-title (car (nth i ordered-titles))))
+              (format t "~&Exploring ~A " (gethash curr-title titles))
+              (setf longest-curr ; Search backwards and
+                    (best-first-search-with-backtracking `((,curr-title)) look-ahead backtrack-limit max-count prev))
+              (setf longest-curr ; continue forwards
+                    (best-first-search-with-backtracking `(,(reverse longest-curr)) look-ahead backtrack-limit max-count next))
+              (format t "#~D" (length longest-curr))
+              (when (> (length longest-curr) (length longest-chain))
+                (setf longest-chain longest-curr)
+                (format t "*"))))))
+      (values (reverse longest-chain) titles))))
 
-(defun solve (filename &key (n 50) (look-ahead 5) (backtrack-limit 15) (max-count 1000000))
+(defun solve (filename &key (n 5) (look-ahead 5) (backtrack-limit 15) (max-count 1000000))
   (multiple-value-bind (longest titles)
       (find-longest-chain filename n look-ahead backtrack-limit max-count)
     (print-longest-chain longest titles)
