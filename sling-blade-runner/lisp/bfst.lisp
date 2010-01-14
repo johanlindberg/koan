@@ -63,6 +63,8 @@
     (multiple-value-bind (titles last-index)
 	(index-titles filename)
 
+      (setf *titles* titles)
+
       ;; Split titles into pieces and index them in hash-tables left and right.
       (dotimes (title-index last-index)
 	(let ((title-parts (split (gethash title-index titles))))
@@ -83,7 +85,7 @@
 			   (setf (gethash right-index next)
                                  (cons left-index (gethash right-index next '()))))))))
 	       left)
-      (values next prev titles))))
+      (values next prev))))
 
 (let ((memo (make-hash-table :test #'equal)))
   (defun count-tree-size (index depth hash-table-name hash-table)
@@ -181,10 +183,9 @@
     copy))
 
 
-(defun find-longest-chain (filename top look-ahead backtrack-limit cutoff)
-  (multiple-value-bind (next prev titles)
+(defun find-longest-chain (filename top processes look-ahead backtrack-limit cutoff)
+  (multiple-value-bind (next prev)
       (make-xref filename) ; Index and cross reference all titles in <filename>.
-    (setf *titles* titles)
     (let ((ordered-titles (order-titles look-ahead next prev)))
       (restart-bind ((abort-search #'(lambda ()
                                        (return-from find-longest-chain
@@ -195,38 +196,37 @@
                                                   (length *longest-chain*)))))
         (dotimes (i top)
           (let ((curr-title (car (nth i ordered-titles))))
+            (with-lock-grabbed (*available-processes-lock*)
+              (decf *available-processes*))
             (process-run-function (format nil "search~D" i)
                                   #'(lambda ()
                                       (format t "~&[~D] Searching ~A" i (gethash curr-title *titles*))
-                                      (let ((result '()))
-                                        (with-lock-grabbed (*available-processes-lock*)
-                                          (decf *available-processes*))
-                                        (setf result
-                                              (search-from-title curr-title
-                                                                 look-ahead backtrack-limit cutoff
-                                                                 (copy-hash-table prev)
-                                                                 (copy-hash-table next)))
-                                        (format t "~&[~D] Searching ~A = ~D" i (gethash curr-title *titles*) (length result))
+                                      (let ((result (search-from-title curr-title
+                                                                       look-ahead backtrack-limit cutoff
+                                                                       (copy-hash-table prev)
+                                                                       (copy-hash-table next))))
+                                        (format t "~&[~D] Searching ~A = ~D" 
+                                                i (gethash curr-title *titles*) (length result))
                                         (with-lock-grabbed (*available-processes-lock*)
                                           (incf *available-processes*))))))
-          (process-wait "waiting for a fresh thread"
+          (process-wait "waiting for an available thread"
                         #'(lambda ()
                             (with-lock-grabbed (*available-processes-lock*)
                               (>= *available-processes* 1))))))
       (process-wait "waiting for all threads to finish"
                     #'(lambda ()
                         (with-lock-grabbed (*available-processes-lock*)
-                          (eq *available-processes* 2))))
-      (values *longest-chain* titles))))
+                          (eq *available-processes* processes))))
+      (values *longest-chain* *titles*))))
 
-(defun solve (filename &key (top 5) (processes 1) (look-ahead 5) (backtrack-limit 10) (cutoff 1000000))
+(defun solve (filename &key (top 5) (processes 2) (look-ahead 5) (backtrack-limit 10) (cutoff 1000000))
   (format t "~&;; Searching ~A for longest chain of overlapping movie titles." filename)
   (format t "~&;; Explores the ~D most connected titles using ~D process(es)." top processes)
   (format t "~&;; Settings: Look-ahead depth = ~D, Backtrack-limit = ~D, Cutoff = ~D." look-ahead backtrack-limit cutoff)
   (with-lock-grabbed (*available-processes-lock*)
     (setf *available-processes* processes))
   (let ((start (get-internal-real-time)))
-    (find-longest-chain filename top look-ahead backtrack-limit cutoff)
+    (find-longest-chain filename top processes look-ahead backtrack-limit cutoff)
     (print-longest-chain)
     (format t "~&;; Total time spent: ~,2,,,F" (/ (- (get-internal-real-time) start) INTERNAL-TIME-UNITS-PER-SECOND))
     (length *longest-chain*)))
