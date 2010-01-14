@@ -45,6 +45,10 @@
       (do ((title-index 0 (+ title-index 1))
 	   (title (read-line movies) (read-line movies nil 'eof)))
 	  ((eq title 'eof) (values titles title-index))
+        (setf title (string-trim '(#\Space
+                                   #\Tab
+                                   #\Newline
+                                   #\Return) title))
 	(unless (string-equal title "") ; Ignore empty lines!
 	  (setf (gethash title-index titles) title))))))
 
@@ -173,9 +177,14 @@
                 (format t "*"))))))
       (values (reverse longest-chain) titles))))
 
-(defun solve (filename &key (n 5) (look-ahead 5) (backtrack-limit 15) (max-count 1000000))
-  (multiple-value-bind (longest titles)
-      (find-longest-chain filename n look-ahead backtrack-limit max-count)
-    (print-longest-chain longest titles)
-    (length longest)))
+(defun solve (filename &key (n 5) (look-ahead 5) (backtrack-limit 10) (max-count 1000000))
+  (format t "~&;; Searching ~A for longest chain of overlapping movie titles." filename)
+  (format t "~&;; Explores the ~D most connected titles." n)
+  (format t "~&;; Settings: Look-ahead depth = ~D, Backtrack-limit = ~D, Cutoff = ~D." look-ahead backtrack-limit max-count)
+  (let ((start (get-internal-real-time)))
+    (multiple-value-bind (longest titles)
+        (find-longest-chain filename n look-ahead backtrack-limit max-count)
+      (print-longest-chain longest titles)
+      (format t "~&;; Total time spent: ~,2,,,F" (/ (- (get-internal-real-time) start) INTERNAL-TIME-UNITS-PER-SECOND))
+    (length longest))))
 
