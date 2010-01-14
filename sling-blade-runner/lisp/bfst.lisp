@@ -4,10 +4,11 @@
 
 (defparameter *available-processes* '())
 (defparameter *longest-chain* '())
+(defparameter *titles* '())
+
 (defparameter *available-processes-lock* (make-lock))
 (defparameter *longest-chain-lock* (make-lock))
-
-(defparameter *titles* '())
+(defparameter *titles-lock* (make-lock))
 
 (defun split (string &optional (delimiter #\SPACE))
   "Splits <string> into pieces separated by <delimiter>."
@@ -171,7 +172,7 @@
            `(,(reverse longest-curr)) look-ahead backtrack-limit cutoff next))
     (with-lock-grabbed (*longest-chain-lock*)
       (when (> (length longest-curr) (length *longest-chain*))
-        (setf *longest-chain* longest-curr)))))
+        (setf *longest-chain* (reverse longest-curr))))))
 
 (defun copy-hash-table (table &key (test nil) (size nil))
   (let* ((test (or test (hash-table-test table)))
@@ -181,7 +182,6 @@
                (setf (gethash k copy) (funcall 'identity v)))
              table)
     copy))
-
 
 (defun find-longest-chain (filename top processes look-ahead backtrack-limit cutoff)
   (multiple-value-bind (next prev)
@@ -195,18 +195,21 @@
                                                   "Abort search and return current longest chain (~D titles)."
                                                   (length *longest-chain*)))))
         (dotimes (i top)
-          (let ((curr-title (car (nth i ordered-titles))))
+          (let ((curr-title (car (nth i ordered-titles)))
+                (copy-i i))
             (with-lock-grabbed (*available-processes-lock*)
               (decf *available-processes*))
-            (process-run-function (format nil "search~D" i)
+            (process-run-function (format nil "search~D" copy-i)
                                   #'(lambda ()
-                                      (format t "~&[~D] Searching ~A" i (gethash curr-title *titles*))
+                                      (with-lock-grabbed (*titles-lock*)
+                                        (format t "~&[~D] Exploring ~A" copy-i (gethash curr-title *titles*)))
                                       (let ((result (search-from-title curr-title
                                                                        look-ahead backtrack-limit cutoff
                                                                        (copy-hash-table prev)
                                                                        (copy-hash-table next))))
-                                        (format t "~&[~D] Searching ~A = ~D" 
-                                                i (gethash curr-title *titles*) (length result))
+                                        (with-lock-grabbed (*titles-lock*)
+                                          (format t "~&[~D] Exploring ~A #~D" 
+                                                  copy-i (gethash curr-title *titles*) (length result)))
                                         (with-lock-grabbed (*available-processes-lock*)
                                           (incf *available-processes*))))))
           (process-wait "waiting for an available thread"
