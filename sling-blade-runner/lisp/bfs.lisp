@@ -153,6 +153,21 @@
         (return-from best-first-search-with-backtracking longest-curr)))
     longest-curr))
 
+(defun find-connection (a b min-length used-nodes)
+  (let ((result '()))
+    
+    (list a b)))
+
+(defun expand-chain (chain look-ahead)
+  (let ((prev-node '())
+        (result (list (car chain))))
+    (dolist (node chain)
+      (when prev-node
+        (let ((c (find-connection prev-node node look-ahead chain)))
+          (setf result (append result (cdr c)))))
+      (setf prev-node node))
+    result))
+
 (defun find-longest-chain (filename n look-ahead backtrack-limit max-count)
   (multiple-value-bind (next prev titles)
       (make-xref filename) ; Index and cross reference all titles in <filename>.
@@ -167,10 +182,12 @@
           (let ((longest-curr '()))
             (let ((curr-title (car (nth i ordered-titles))))
               (format t "~&Exploring ~A " (gethash curr-title titles))
-              (setf longest-curr ; Search backwards and
+              (setf longest-curr ; Search backwards,
                     (best-first-search-with-backtracking `((,curr-title)) look-ahead backtrack-limit max-count prev))
               (setf longest-curr ; continue forwards
                     (best-first-search-with-backtracking `(,(reverse longest-curr)) look-ahead backtrack-limit max-count next))
+              (setf longest-curr ; and expand the chain
+                    (expand-chain longest-curr look-ahead))
               (format t "#~D" (length longest-curr))
               (when (> (length longest-curr) (length longest-chain))
                 (setf longest-chain longest-curr)
