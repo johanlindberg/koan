@@ -1,0 +1,51 @@
+#+TAGS: Think Explore Learn Read Test Develop Fix Blog Abandon
+
+* TODO Search (Sling Blade Runner) 				    :Explore:
+
+"How long a chain of overlapping movie titles, like Sling Blade
+Runner, can you find?"
+
+Use the following listing of movie titles: MOVIES.LST. Multi-word
+overlaps, as in "License to Kill a Mockingbird," are allowed. The same
+title may not be used more than once in a solution. Heuristic
+solutions that may not always produce the greatest number of titles
+will be accepted: seek a reasonable tradeoff of efficiency and optimality.
+
+http://www.itasoftware.com/careers/puzzle_archive.html?catid=39#Sling%20Blade%20Runner
+
+** Books
+*** TODO Algorithmics for Hard Problems				       :Read:
+
+** TODO Best First Search [0/2]					       :Test:
+*** TODO bfs.lisp						    :Develop:
+
+Best-first search using backtracking. The nodes are ordered by
+tree-size counting their children down to a certain depth. Highest
+count is explored first. Nodes are searched both backwards and
+forwards and the two chains are joined to produce a result. The
+currently longest chain is kept and after having searched X nodes the
+program terminates, prints and returns the longest chain found.  
+
+**** expand-chain						    :Develop:
+Next step to develop is a way to expand the longest chain by trying to
+find connections between adjacent nodes that are longer than the
+current. The reason that I think this might produce a longer total
+chain is because the best-first heuristic is designed to "keep going"
+for as long as possible but it won't neccessarily choose the longest
+path. 
+
+*** TODO bfst.lisp						:Develop:Fix:
+
+Same as bfs.lisp but uses multiprocessing/threading to shorten search
+time. Currently this works *mostly* but it crashes unexpectedly sometimes.
+
+**** TODO multiprocessing/threading libraries 			      :Learn:
+There are plenty of material to read. Nick Levine's chapter in Lisp
+outside the box is a starting point but much of the useful information
+seems to be hidden in specs since it is implementation dependent.
+
+** TODO Monte Carlo methods [0/1]				      :Think:
+*** TODO UCT/MCTS
+
+** TODO Genetic Algorithms [0/1]				       :Read:
+*** TODO Ant Colony Optimization (ACO)				       :Read:
