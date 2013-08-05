@@ -37,7 +37,7 @@
 (defun index-titles (filename)
   "Create a hash-table of titles and indexes from <filename>.
 
-   Returns a hash-tables of indexes and titles and the number of titles
+   Returns a hash-table of indexes and titles and the number of titles
    indexed. The hash-table has movie titles (strings) as values and indexes
    (integers) as keys."
   (let ((titles (make-hash-table))) ; N -> "Foo"
@@ -178,7 +178,7 @@
                        :report-function (lambda (stream)
                                           (format stream "Abort search and return current longest chain (~D titles)." (length longest-chain)))))
         (do ((i 0 (+ i 1)))
-            ((> i n))
+            ((>= i n))
           (let ((longest-curr '()))
             (let ((curr-title (car (nth i ordered-titles))))
               (format t "~&Exploring ~A " (gethash curr-title titles))
