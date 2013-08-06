@@ -1,5 +1,8 @@
-;;; January/February 2009 attempt on MOVIES.LST
-;;; Best-first search with backtracking
+;;; Best-first search with backtracking for Sling Blade Runner puzzle.
+
+;;; Jan/Feb 2009  Best first search w/ backtracking attempt.
+;;; Aug 2013      Updates, clarifications and implementation of expand-chain.
+
 
 (defun split (string &optional (delimiter #\SPACE))
   "Splits <string> into pieces separated by <delimiter>."
@@ -147,23 +150,32 @@
       (incf count)
       (when (> (length result) (length longest-curr))
 	(setf longest-curr result)
-;	(format t "#~D (~D), " (length longest-curr) count)
         (setf count 0))
       (when (> count max-count)
         (return-from best-first-search-with-backtracking longest-curr)))
     longest-curr))
 
-(defun find-connection (a b min-length used-nodes)
-  (let ((result '()))
+(defun find-connection (a b min-length used-nodes titles hash)
+  (declare (ignore min-length titles))
+  (let ((result (list a b))
+	(nexts (gethash a hash)))
     
-    (list a b)))
+    (when (> (length nexts) 1)
+      (dolist (index nexts)
+	(unless (member index used-nodes)
+	  (when (member b (gethash index hash))
+	    (print (list (gethash a titles)
+			 (gethash index titles)
+			 (gethash b titles)))
+	    (setf result (list a index b))))))
+    result))
 
-(defun expand-chain (chain look-ahead)
+(defun expand-chain (chain look-ahead titles hash)
   (let ((prev-node '())
         (result (list (car chain))))
     (dolist (node chain)
       (when prev-node
-        (let ((c (find-connection prev-node node look-ahead chain)))
+        (let ((c (find-connection prev-node node look-ahead chain titles hash)))
           (setf result (append result (cdr c)))))
       (setf prev-node node))
     result))
@@ -173,10 +185,15 @@
       (make-xref filename) ; Index and cross reference all titles in <filename>.
     (let ((ordered-titles (order-titles look-ahead next prev))
 	  (longest-chain '()))
-      (restart-bind ((abort-search #'(lambda ()
-                                       (return-from find-longest-chain (values (reverse longest-chain) titles)))
-                       :report-function (lambda (stream)
-                                          (format stream "Abort search and return current longest chain (~D titles)." (length longest-chain)))))
+      (restart-bind
+	  ((abort-search #'(lambda ()
+			     (return-from find-longest-chain
+			       (values (reverse longest-chain) titles)))
+	     :report-function
+	     (lambda (stream)
+	       (format stream "Abort search and return current longest chain (~D titles)."
+		       (length longest-chain)))))
+
         (do ((i 0 (+ i 1)))
             ((>= i n))
           (let ((longest-curr '()))
@@ -187,12 +204,12 @@
               (setf longest-curr ; continue forwards
                     (best-first-search-with-backtracking `(,(reverse longest-curr)) look-ahead backtrack-limit max-count next))
               (setf longest-curr ; and expand the chain
-                    (expand-chain longest-curr look-ahead))
+                    (expand-chain (reverse longest-curr) look-ahead titles next))
               (format t "#~D" (length longest-curr))
               (when (> (length longest-curr) (length longest-chain))
                 (setf longest-chain longest-curr)
                 (format t "*"))))))
-      (values (reverse longest-chain) titles))))
+      (values longest-chain titles))))
 
 (defun solve (filename &key (n 5) (look-ahead 5) (backtrack-limit 10) (max-count 1000000))
   (format t "~&;; Searching ~A for longest chain of overlapping movie titles." filename)
