@@ -164,9 +164,6 @@
       (dolist (index nexts)
 	(unless (member index used-nodes)
 	  (when (member b (gethash index hash))
-	    (print (list (gethash a titles)
-			 (gethash index titles)
-			 (gethash b titles)))
 	    (setf result (list a index b))))))
     result))
 
