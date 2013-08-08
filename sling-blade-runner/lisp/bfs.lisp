@@ -157,20 +157,19 @@
 
 (let ((search-result '()))
   (defun inner-find-connection (nexts b search-depth used-nodes hash acc)
-    (when (> (length nexts) 1)
-      (dolist (index nexts)
-	(unless (or (member index used-nodes)
-		    (member index acc))
-	  (if (member b (gethash index hash))
-	      (push (append acc (list index b)) search-result)
-	      (if (eq search-depth 1)
-		  nil
-		  (inner-find-connection (gethash index hash)
-					 b
-					 (- search-depth 1)
-					 used-nodes
-					 hash
-					 (append acc (list index)))))))))
+    (dolist (index nexts)
+      (unless (or (member index used-nodes)
+		  (member index acc))
+	(if (member b (gethash index hash))
+	    (push (append acc (list index b)) search-result)
+	    (if (eq search-depth 1)
+		nil
+		(inner-find-connection (gethash index hash)
+				       b
+				       (- search-depth 1)
+				       used-nodes
+				       hash
+				       (append acc (list index))))))))
 
   (defun find-connection (a b search-depth used-nodes hash)
     (setf search-result '())
@@ -195,7 +194,7 @@
     (dolist (node chain)
       (when prev-node
         (let ((c (find-connection prev-node node
-				  (* look-ahead 100)
+				  (* look-ahead 5)
 				  (append chain result)
 				  hash)))
           (setf result (append result (cdr c)))))
