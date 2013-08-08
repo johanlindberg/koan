@@ -194,7 +194,10 @@
         (result (list (car chain))))
     (dolist (node chain)
       (when prev-node
-        (let ((c (find-connection prev-node node (* look-ahead 100) chain hash)))
+        (let ((c (find-connection prev-node node
+				  (* look-ahead 100)
+				  (append chain result)
+				  hash)))
           (setf result (append result (cdr c)))))
       (setf prev-node node))
     result))
