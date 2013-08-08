@@ -162,7 +162,7 @@
 	(unless (or (member index used-nodes)
 		    (member index acc))
 	  (if (member b (gethash index hash))
-	      (push (append acc (list b)) search-result)
+	      (push (append acc (list index b)) search-result)
 	      (if (eq search-depth 1)
 		  nil
 		  (inner-find-connection (gethash index hash)
