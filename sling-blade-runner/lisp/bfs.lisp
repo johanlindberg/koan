@@ -155,24 +155,46 @@
         (return-from best-first-search-with-backtracking longest-curr)))
     longest-curr))
 
-(defun find-connection (a b min-length used-nodes titles hash)
-  (declare (ignore min-length titles))
-  (let ((result (list a b))
-	(nexts (gethash a hash)))
-    
+(let ((search-result '()))
+  (defun inner-find-connection (nexts b search-depth used-nodes hash acc)
     (when (> (length nexts) 1)
       (dolist (index nexts)
-	(unless (member index used-nodes)
-	  (when (member b (gethash index hash))
-	    (setf result (list a index b))))))
-    result))
+	(unless (or (member index used-nodes)
+		    (member index acc))
+	  (if (member b (gethash index hash))
+	      (push (append acc (list b)) search-result)
+	      (if (eq search-depth 1)
+		  nil
+		  (inner-find-connection (gethash index hash)
+					 b
+					 (- search-depth 1)
+					 used-nodes
+					 hash
+					 (append acc (list index)))))))))
 
-(defun expand-chain (chain look-ahead titles hash)
+  (defun find-connection (a b search-depth used-nodes hash)
+    (setf search-result '())
+    (let ((result (list a b)))
+      (when (> search-depth 1)
+	(inner-find-connection (gethash a hash)
+			       b 
+			       (- search-depth 1)
+			       used-nodes
+			       hash
+			       (list a))
+	
+	(dolist (res search-result)
+	  (when (> (length res) (length result))
+	    (setf result res))))
+
+      result)))
+
+(defun expand-chain (chain look-ahead hash)
   (let ((prev-node '())
         (result (list (car chain))))
     (dolist (node chain)
       (when prev-node
-        (let ((c (find-connection prev-node node look-ahead chain titles hash)))
+        (let ((c (find-connection prev-node node (* look-ahead 100) chain hash)))
           (setf result (append result (cdr c)))))
       (setf prev-node node))
     result))
@@ -201,7 +223,7 @@
               (setf longest-curr ; continue forwards
                     (best-first-search-with-backtracking `(,(reverse longest-curr)) look-ahead backtrack-limit max-count next))
               (setf longest-curr ; and expand the chain
-                    (expand-chain (reverse longest-curr) look-ahead titles next))
+                    (expand-chain (reverse longest-curr) look-ahead next))
               (format t "#~D" (length longest-curr))
               (when (> (length longest-curr) (length longest-chain))
                 (setf longest-chain longest-curr)
