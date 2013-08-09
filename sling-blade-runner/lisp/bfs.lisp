@@ -68,10 +68,13 @@
       (dotimes (title-index last-index)
 	(let ((title-parts (split (gethash title-index titles))))
 	  (dotimes (i (length title-parts))
-	    (let ((lpart (join (subseq title-parts 0 (- (length title-parts) i))))
+	    (let ((lpart (join (subseq title-parts 
+				       0 (- (length title-parts) i))))
 		  (rpart (join (subseq title-parts i))))
-	      (setf (gethash lpart left) (cons title-index (gethash lpart left '())))
-	      (setf (gethash rpart right) (cons title-index (gethash rpart right '())))))))
+	      (setf (gethash lpart left)
+		    (cons title-index (gethash lpart left '())))
+	      (setf (gethash rpart right)
+		    (cons title-index (gethash rpart right '())))))))
       
       ;; Find overlaps in titles and index them in hash-tables next and prev.
       (maphash #'(lambda (title-part left-indexes)
@@ -79,18 +82,27 @@
 		     (dolist (left-index left-indexes)
 		       (dolist (right-index (gethash title-part right))
 			 (unless (eq left-index right-index)
-			   (setf (gethash left-index prev) (cons right-index (gethash left-index prev '())))
-			   (setf (gethash right-index next) (cons left-index (gethash right-index next '()))))))))
+			   (setf (gethash left-index prev)
+				 (cons right-index
+				       (gethash left-index prev '())))
+			   (setf (gethash right-index next)
+				 (cons left-index
+				       (gethash right-index next '()))))))))
 	       left)
       (values next prev titles))))
 
 (let ((memo (make-hash-table :test #'equal)))
   (defun count-tree-size (index depth hash-table-name hash-table)
+    "Returns the number of child nodes for <index>.
+
+     All children, grand-children etc down to <depth> are included
+     in the count."
     (let ((result (gethash `(,index ,depth ,hash-table-name) memo)))
       (if result
 	  result
 	  (setf (gethash `(,index ,depth ,hash-table-name) memo)
-		(internal-count-tree-size index depth hash-table-name hash-table)))))
+		(internal-count-tree-size index depth
+					  hash-table-name hash-table)))))
   
   (defun internal-count-tree-size (index depth hash-table-name hash-table)
     (let ((children (gethash index hash-table))
@@ -98,13 +110,16 @@
       (if (and (> depth 0)
 	       children)
 	  (dolist (child children)
-	    (setf result (+ (count-tree-size child (- depth 1) hash-table-name hash-table) result)))
+	    (setf result (+ (count-tree-size child (- depth 1)
+					     hash-table-name hash-table)
+			    result)))
 	  (setf result 1))
       result)))
 
 (defun get-children (index depth next visited-indexes)
-  "Return a sorted list (using tree-size of <depth>) of all children for
-   <index>. Only child-indexes who are not in <visited-indexes> are used."
+  "Return a sorted list of all children for <index>.
+
+   Only child-indexes who are not in <visited-indexes> are used."
   (let ((result (sort (remove-if #'(lambda (i)
 				     (member i visited-indexes))
 				 (gethash index next))
@@ -114,13 +129,16 @@
     result))
   
 (defun order-titles (look-ahead next prev)
-  "Order all titles by tree-size (in <next> and <prev> combined) with <look-ahead> depth."
+  "Order all titles by tree-size (in <next> and <prev> combined)."
   (let ((ordered-titles '()))
-    (maphash #'(lambda (k v)
-		 (declare (ignore v))
-		 (setf ordered-titles (cons `(,k ,(+ (count-tree-size k look-ahead 'next next)
-						     (count-tree-size k look-ahead 'prev prev))) ordered-titles)))
-	     next)
+    (maphash
+     #'(lambda (k v)
+	 (declare (ignore v))
+	 (setf ordered-titles 
+	       (cons `(,k ,(+ (count-tree-size k look-ahead 'next next)
+			      (count-tree-size k look-ahead 'prev prev)))
+		     ordered-titles)))
+     next)
     (sort ordered-titles #'> :key #'cadr)))
 
 (defun select-choice-points (children backtrack-limit)
@@ -131,7 +149,9 @@
 	(push child result)))
     result))
 
-(defun best-first-search-with-backtracking (choice-points look-ahead backtrack-limit max-count hash)
+(defun best-first-search-with-backtracking
+    (choice-points look-ahead backtrack-limit max-count hash)
+
   (let ((longest-curr '())
 	(result '())
         (count 0)
@@ -203,7 +223,7 @@
 
 (defun find-longest-chain (filename n look-ahead backtrack-limit max-count)
   (multiple-value-bind (next prev titles)
-      (make-xref filename) ; Index and cross reference all titles in <filename>.
+      (make-xref filename) ; Index and cross reference <filename>.
     (let ((ordered-titles (order-titles look-ahead next prev))
 	  (longest-chain '()))
       (restart-bind
@@ -212,7 +232,8 @@
 			       (values (reverse longest-chain) titles)))
 	     :report-function
 	     (lambda (stream)
-	       (format stream "Abort search and return current longest chain (~D titles)."
+	       (format stream
+		       "Abort search and return current longest chain (~D titles)."
 		       (length longest-chain)))))
 
         (do ((i 0 (+ i 1)))
@@ -220,26 +241,39 @@
           (let ((longest-curr '()))
             (let ((curr-title (car (nth i ordered-titles))))
               (format t "~&Exploring ~A " (gethash curr-title titles))
+
               (setf longest-curr ; Search backwards,
-                    (best-first-search-with-backtracking `((,curr-title)) look-ahead backtrack-limit max-count prev))
+                    (best-first-search-with-backtracking `((,curr-title))
+							 look-ahead backtrack-limit
+							 max-count prev))
+
               (setf longest-curr ; continue forwards
-                    (best-first-search-with-backtracking `(,(reverse longest-curr)) look-ahead backtrack-limit max-count next))
+                    (best-first-search-with-backtracking `(,(reverse longest-curr)) 
+							 look-ahead backtrack-limit
+							 max-count next))
+
               (setf longest-curr ; and expand the chain
                     (expand-chain (reverse longest-curr) look-ahead next))
+
               (format t "#~D" (length longest-curr))
               (when (> (length longest-curr) (length longest-chain))
                 (setf longest-chain longest-curr)
                 (format t "*"))))))
+
       (values longest-chain titles))))
 
 (defun solve (filename &key (n 5) (look-ahead 5) (backtrack-limit 10) (max-count 1000000))
   (format t "~&;; Searching ~A for longest chain of overlapping movie titles." filename)
   (format t "~&;; Explores the ~D most connected titles." n)
-  (format t "~&;; Settings: Look-ahead depth = ~D, Backtrack-limit = ~D, Cutoff = ~D." look-ahead backtrack-limit max-count)
+  (format t "~&;; Settings: Look-ahead depth = ~D, Backtrack-limit = ~D, Cutoff = ~D."
+	  look-ahead backtrack-limit max-count)
+
   (let ((start (get-internal-real-time)))
     (multiple-value-bind (longest titles)
         (find-longest-chain filename n look-ahead backtrack-limit max-count)
       (print-longest-chain longest titles)
-      (format t "~&;; Total time spent: ~,2,,,F" (/ (- (get-internal-real-time) start) INTERNAL-TIME-UNITS-PER-SECOND))
+      (format t "~&;; Total time spent: ~,2,,,Fs"
+	      (/ (- (get-internal-real-time) start) INTERNAL-TIME-UNITS-PER-SECOND))
+
     (length longest))))
 
