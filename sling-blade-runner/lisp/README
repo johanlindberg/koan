@@ -1,7 +1,7 @@
 ; SLIME 2013-05-16
 CL-USER> [C-c C-k]
 ;Compiling "/Users/johanlindberg/Projects/koan/sling-blade-runner/lisp/bfs.lisp"...
-CL-USER> (solve "/Users/johanlindberg/Projects/koan/sling-blade-runner/MOVIES.LST" :n 50)
+CL-USER> (bfs:solve "/Users/johanlindberg/Projects/koan/sling-blade-runner/MOVIES.LST" :n 50)
 ;; Searching /Users/johanlindberg/Projects/koan/sling-blade-runner/MOVIES.LST for longest chain of overlapping movie titles.
 ;; Explores the 50 most connected titles.
 ;; Settings: Look-ahead depth = 5, Backtrack-limit = 10, Cutoff = 1000000.

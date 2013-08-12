@@ -3,6 +3,11 @@
 ;;; Jan/Feb 2009  Best first search w/ backtracking attempt.
 ;;; Aug 2013      Updates, clarifications and implementation of expand-chain.
 
+(defpackage :bfs
+  (:use cl)
+  (:export :make-xref :order-titles :search-title :print-longest-chain
+	   :find-longest-chain :solve))
+(in-package :bfs)
 
 (defun split (string &optional (delimiter #\SPACE))
   "Splits <string> into pieces separated by <delimiter>."
