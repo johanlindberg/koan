@@ -221,6 +221,25 @@
       (setf prev-node node))
     result))
 
+(defun search-title (title look-ahead backtrack-limit max-count prev next)
+  "Search from <title> and return the longest chain found."
+  (let ((longest-chain '()))
+    (setf longest-chain ; Search backwards,
+	  (best-first-search-with-backtracking `((,title))
+					       look-ahead backtrack-limit
+					       max-count prev))
+
+    (setf longest-chain ; continue forwards
+	  (best-first-search-with-backtracking `(,(reverse longest-chain)) 
+					       look-ahead backtrack-limit
+					       max-count next))
+
+    (setf longest-chain ; and expand the chain
+	  (expand-chain (reverse longest-chain) look-ahead next))
+
+    longest-chain))
+
+
 (defun find-longest-chain (filename n look-ahead backtrack-limit max-count)
   (multiple-value-bind (next prev titles)
       (make-xref filename) ; Index and cross reference <filename>.
@@ -241,20 +260,11 @@
           (let ((longest-curr '()))
             (let ((curr-title (car (nth i ordered-titles))))
               (format t "~&Exploring ~A " (gethash curr-title titles))
-
-              (setf longest-curr ; Search backwards,
-                    (best-first-search-with-backtracking `((,curr-title))
-							 look-ahead backtrack-limit
-							 max-count prev))
-
-              (setf longest-curr ; continue forwards
-                    (best-first-search-with-backtracking `(,(reverse longest-curr)) 
-							 look-ahead backtrack-limit
-							 max-count next))
-
-              (setf longest-curr ; and expand the chain
-                    (expand-chain (reverse longest-curr) look-ahead next))
-
+	      (setf longest-curr (search-title curr-title
+					       look-ahead
+					       backtrack-limit
+					       max-count
+					       prev next))
               (format t "#~D" (length longest-curr))
               (when (> (length longest-curr) (length longest-chain))
                 (setf longest-chain longest-curr)
