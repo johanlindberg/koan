@@ -13,14 +13,19 @@ function make_xref(file) {
     var fin = new LBL(file);
     var line_no = 0;
 
+    var titles = {};
+
     fin.on('line',
-	   function(line) {
-	       console.log(line);
+	   function(title) {
+	       var index = line_no;
+	       titles[index] = title;
+
 	       line_no++;
 	   });
 
     fin.on('end',
 	   function() {
+	       console.log(titles);
 	       console.log(line_no + " titles read");
 	   }); 
 }
