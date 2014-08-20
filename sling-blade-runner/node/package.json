@@ -1,0 +1,6 @@
+{
+  "name": "sling-blade-runner",
+  "description": "August 2014 attempt at sling-blade-runner puzzle using Node.js",
+  "version": "alpha",
+  "private": true
+}
